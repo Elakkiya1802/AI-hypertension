@@ -1,0 +1,358 @@
+/* ===== PALETTE (matches your screenshot vibe) ===== */
+:root {
+    --bg-main: #f0f6ec;          /* very light mint background */
+    --card-bg: #e3f0d9;          /* soft green card */
+    --input-bg: #b9dd8a;         /* pastel green input (like your image) */
+    --primary: #6aa84f;          /* calm green accent */
+    --text-dark: #1f2933;
+    --border: rgba(0,0,0,0.08);
+}
+
+/* ===== BACKGROUND (premium, no people) ===== */
+/* ---------- BACKGROUND (your leaf image, properly centered) ---------- */
+body {
+    margin: 0;
+    min-height: 100vh;
+
+    background:
+        linear-gradient(rgba(240, 246, 236, 0.35), rgba(240, 246, 236, 0.35)),
+        url("leaf.jpg")
+        center/cover no-repeat fixed;
+
+    font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+/* ---------- SINGLE CLEAN LOGIN CARD ---------- */
+.container {
+    width: 1000px;
+    max-width: 95%;
+    margin: 60px auto;
+    background: #c8cccaf4;
+    padding: 26px 40px 32px;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
+
+/* ---------- INPUT STYLE (matches your theme) ---------- */
+input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-top: 6px;
+    border: none;
+    border-radius: 10px;
+    background: #86ca2e;   /* pastel green like your image */
+    font-size: 14px;
+    outline: none;
+}
+
+/* ---------- BUTTON STYLE ---------- */
+button {
+    margin-top: 25px;
+    width: 50%;
+    padding: 12px;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+    display: block;
+    margin: 25px auto 0;
+
+    background: var(--primary);   /* 👈 THIS IS THE KEY CHANGE */
+    
+}
+
+
+
+/* ---------- TEXT ALIGNMENT ---------- */
+h2 {
+    text-align: center;
+    letter-spacing: 1px;
+}
+
+
+/* ===== FORM STYLE (like your screenshot) ===== */
+label {
+    display: block;
+    font-weight: 600;
+    margin-top: 14px;
+    color: #2f3e46;
+}
+
+input, select {
+    width: 100%;
+    padding: 10px 12px;
+    margin-top: 6px;
+    border: none;
+    border-radius: 10px;
+    background: #b9dd8a;   /* pastel green like your screenshot */
+    font-size: 14px;
+    outline: none;
+}
+
+/* subtle focus effect */
+input:focus, select:focus {
+    box-shadow: 0 0 0 2px rgba(106,168,79,0.3);
+}
+
+/* ===== BUTTONS (soft green) ===== */
+button {
+    margin-top: 25px;
+    width: 50%;
+    padding: 12px;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+    display: block;
+    margin: 25px auto 0;
+}
+
+button.primary {
+    background: #6aa84f;
+    color: white;
+    width: 55%;
+    border-radius: 12px;
+}
+
+
+button.secondary {
+    display: inline-block;   
+    width: auto;           
+    padding: 6px 12px;
+    font-size: 15px;
+    position: fixed;
+    top: 10px;
+    right: 20px;
+    border-radius: 6px;
+}
+
+
+
+button:hover {
+    transform: translateY(-1px);
+}
+
+/* ===== RESULT BOX ===== */
+#result {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.6);
+    border: 1px solid var(--border);
+    white-space: pre-line;
+}
+
+/* ===== HISTORY TABLE ===== */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    background: rgba(255,255,255,0.7);
+}
+
+th, td {
+    padding: 8px;
+    border: 1px solid var(--border);
+}
+
+th {
+    background: rgba(255,255,255,0.9);
+}
+
+/* ===== FLEX NAV FOR DASHBOARDS ===== */
+.nav{
+    display:flex;
+    justify-content:center;
+    gap:15px;
+    margin:20px 0;
+}
+/* ===== USER DASHBOARD (CARD LAYOUT LIKE YOUR IMAGE) ===== */
+
+.dashboard {
+    max-width: 1000px;
+    margin: 40px auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+}
+
+.topbar {
+    max-width: 1000px;
+    margin: 20px auto;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.topbar h2 {
+    margin: 0;
+    color: #1f2933;
+}
+
+.card {
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(8px);
+    border-radius: 18px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+    border: 1px solid rgba(0,0,0,0.06);
+}
+
+.card img {
+    width: 80%;
+    max-width: 280px;
+    margin-bottom: 12px;
+}
+
+.card h3 {
+    margin: 8px 0 12px 0;
+}
+
+.action-btn {
+    background: #6aa84f;
+    color: white;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* ===== HISTORY PAGE LAYOUT ===== */
+
+/* ===== HISTORY TOP BAR (ARROW + CENTERED TITLE) ===== */
+
+.history-topbar {
+    max-width: 900px;
+    margin: 20px auto;
+    display: flex;
+    align-items: center;
+}
+
+/* Title stays centered */
+.history-topbar h2 {
+    flex: 1;
+    text-align: center;
+    margin: 0;
+}
+
+/* Back arrow button */
+.back-arrow {
+    background: #e3f0d9;
+    border: 1px solid rgba(0,0,0,0.08);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+ 
+    position: fixed;
+    top: 10px;
+    left: 10px;
+
+}
+
+.back-arrow:hover {
+    background: #d3e6c6;
+}
+
+.history-container {
+    max-width: 900px;
+    margin: 110px auto;
+    background: rgba(255,255,255,0.8);
+    backdrop-filter: blur(6px);
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    align-items: center;
+}
+
+.history-table {
+   
+
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.history-table th,
+.history-table td {
+    padding: 10px;
+    border: 1px solid rgba(0,0,0,0.08);
+}
+
+.history-table th {
+    background: #f0f6ec;
+    text-align: left;
+}
+.history-table td:last-child,
+.history-table th:last-child {
+    width: 100px;  /* gives space for Delete button */
+    text-align: center;
+}
+
+/* ===== FIXED DELETE BUTTON ===== */
+.delete-btn {
+    background: #dc2626;
+    color: white;
+    border: none;
+    padding: 6px 14px;   /* <-- IMPORTANT: wider padding */
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap; /* <-- PREVENTS TEXT FROM BREAKING */
+    min-width: 70px;     /* <-- ENSURES BUTTON DOESN’T SHRINK */
+}
+/* ===== ADMIN USERS GRID ===== */
+
+.user-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:18px;
+    margin-top:15px;
+}
+
+.user-card{
+    background:rgba(255,255,255,0.75);
+    backdrop-filter: blur(6px);
+    border-radius:14px;
+    padding:16px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.06);
+}
+
+.user-id{
+    font-weight:600;
+    color:#1f2933;
+}
+
+.user-email{
+    font-size:14px;
+    margin-top:4px;
+}
+
+.user-role{
+    margin-top:8px;
+    display:inline-block;
+    padding:4px 10px;
+    border-radius:20px;
+    font-size:12px;
+}
+
+.user-role.admin{
+    background:#ffd9d9;
+}
+
+.user-role.user{
+    background:#d9f5d9;
+}
+.chart-card{
+    background:rgba(255,255,255,0.75);
+    border-radius:16px;
+    padding:20px;
+    margin-top:20px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.06);
+}

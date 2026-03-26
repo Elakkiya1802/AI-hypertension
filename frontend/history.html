@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Prediction History</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<style>
+.back-arrow-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px; border: 1.5px solid rgba(168,196,162,0.45);
+  border-radius: 30px; background: rgba(255,255,255,0.65);
+  color: #556052; font-family: inherit; font-size: 0.83rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+}
+.back-arrow-btn:hover { background: #e8f3e8; color: #4a8c4a; border-color: rgba(74,140,74,0.3); }
+#graphSection { display:none; max-width:900px; margin:20px auto 8px; padding:0 16px; font-family:inherit; }
+.graph-card {
+  background: rgba(255,255,255,0.72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.88); border-radius: 20px;
+  box-shadow: 0 6px 32px rgba(60,80,55,0.10); overflow: hidden;
+}
+.graph-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 22px 14px; border-bottom: 1px solid rgba(168,196,162,0.18);
+}
+.graph-title { font-size: 0.95rem; font-weight: 700; color: #2c3328; letter-spacing: -0.01em; }
+.graph-tabs { display: flex; gap: 6px; }
+.g-tab {
+  padding: 5px 14px; border-radius: 20px; border: 1.5px solid rgba(168,196,162,0.35);
+  background: transparent; color: #8a9e86; font-family: inherit;
+  font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.g-tab.active {
+  background: linear-gradient(135deg, #4a8c4a, #6bb36b); color: #fff;
+  border-color: transparent; box-shadow: 0 3px 10px rgba(74,140,74,0.25);
+}
+.graph-body { padding: 20px 24px 24px; }
+.graph-body.two-col { display: grid; grid-template-columns: 1.4fr 1fr; align-items: center; gap: 20px; }
+.chart-lbl { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#8a9e86; margin-bottom:10px; }
+</style>
+
+<div class="history-topbar">
+  <div style="width:80px;"></div>
+  <h2>Your Prediction History</h2>
+  <div style="width:80px;"></div>
+</div>
+
+<div style="position:fixed;top:14px;left:18px;z-index:999;">
+ 
+<button onclick="window.location.href='user.html'" style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:1.5px solid rgba(168,196,162,0.5);border-radius:50%;background:rgba(255,255,255,0.80);cursor:pointer;box-shadow:0 2px 10px rgba(60,80,55,0.10);backdrop-filter:blur(10px);">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#556052" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+
+</div>
+
+<!-- ── GRAPH SECTION (added only) ───────────── -->
+<div id="graphSection">
+  <div class="graph-card">
+    <div class="graph-header">
+      <span class="graph-title">Your Risk Progress</span>
+      <div class="graph-tabs">
+        <button class="g-tab active" id="tab1" onclick="showTab(1)">Timeline</button>
+        <button class="g-tab"        id="tab2" onclick="showTab(2)">Distribution</button>
+      </div>
+    </div>
+    <div id="tabPane1" class="graph-body">
+      <div class="chart-lbl">Risk level over time</div>
+      <canvas id="riskTimeline" style="max-height:210px;"></canvas>
+    </div>
+    <div id="tabPane2" class="graph-body two-col" style="display:none;">
+      <div>
+        <div class="chart-lbl">High vs Low breakdown</div>
+        <canvas id="riskDonut" style="max-height:200px;max-width:200px;display:block;margin:0 auto;"></canvas>
+      </div>
+      <div id="donutSummary"></div>
+    </div>
+  </div>
+</div>
+<!-- ── END GRAPH SECTION ─────────────────────── -->
+
+<div class="history-container">
+<table class="history-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Risk</th>
+      <th>Time</th>
+      <th>Advice</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody id="historyBody"></tbody>
+</table>
+</div>
+
+<script>
+const API_URL = "http://127.0.0.1:8000";
+const user_id = localStorage.getItem("user_id");
+
+/* ── graph tab toggle ── */
+function showTab(n) {
+  document.getElementById("tabPane1").style.display = n === 1 ? "block" : "none";
+  document.getElementById("tabPane2").style.display = n === 2 ? "grid"  : "none";
+  document.getElementById("tab1").className = "g-tab" + (n === 1 ? " active" : "");
+  document.getElementById("tab2").className = "g-tab" + (n === 2 ? " active" : "");
+}
+
+/* ── build graphs from data ── */
+let timelineChart = null;
+let donutChart    = null;
+
+function buildGraphs(data) {
+  document.getElementById("graphSection").style.display = "block";
+
+  const chrono = [...data].reverse();
+  const labels = chrono.map(d => d.time);
+  const values = chrono.map(d => d.risk === "High" ? 1 : 0);
+  const highs  = data.filter(d => d.risk === "High").length;
+  const lows   = data.length - highs;
+  const total  = data.length;
+
+  Chart.defaults.font.family = "inherit";
+  Chart.defaults.color = "#8a9e86";
+
+  const tip = {
+    backgroundColor: "rgba(255,255,255,0.96)", titleColor: "#2c3328",
+    bodyColor: "#556052", borderColor: "rgba(168,196,162,0.35)",
+    borderWidth: 1, padding: 12, cornerRadius: 12,
+    displayColors: false,
+  };
+
+  // ── Timeline: smooth area chart ──
+  if (timelineChart) timelineChart.destroy();
+
+  const canvas  = document.getElementById("riskTimeline");
+  const ctx     = canvas.getContext("2d");
+  const grad    = ctx.createLinearGradient(0, 0, 0, 210);
+  grad.addColorStop(0,   "rgba(74,140,74,0.28)");
+  grad.addColorStop(0.65,"rgba(74,140,74,0.07)");
+  grad.addColorStop(1,   "rgba(74,140,74,0.00)");
+
+  timelineChart = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: "#4a8c4a",
+        backgroundColor: grad,
+        borderWidth: 2,
+        pointRadius: chrono.map((d,i) => {
+          // emphasise first, last and transitions
+          if (i === 0 || i === chrono.length-1) return 6;
+          if (i > 0 && chrono[i].risk !== chrono[i-1].risk) return 6;
+          return 3;
+        }),
+        pointHoverRadius: 8,
+        pointBackgroundColor: chrono.map(d => d.risk === "High" ? "#e07050" : "#4a8c4a"),
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+        fill: true,
+        tension: 0.42,
+      }]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        y: {
+          min: -0.25, max: 1.25,
+          ticks: {
+            stepSize: 1,
+            callback: v => v === 1 ? "High Risk" : v === 0 ? "Low Risk" : "",
+            font: { size: 11, weight: "600" },
+            color: v => v.tick.value === 1 ? "#e07050" : "#4a8c4a",
+          },
+          grid: { color: "rgba(168,196,162,0.13)", drawBorder: false },
+          border: { display: false },
+        },
+        x: {
+          grid: { display: false },
+          ticks: { maxRotation: 40, font: { size: 9 }, maxTicksLimit: 10 },
+          border: { display: false },
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...tip,
+          callbacks: {
+            title: ctx => "📅 " + ctx[0].label,
+            label: ctx => ctx.raw === 1 ? "🔴  High Risk" : "🟢  Low Risk",
+          }
+        }
+      }
+    }
+  });
+
+  // ── Donut: clean pie ──
+  if (donutChart) donutChart.destroy();
+  donutChart = new Chart(document.getElementById("riskDonut"), {
+    type: "doughnut",
+    data: {
+      labels: ["High Risk", "Low Risk"],
+      datasets: [{
+        data: [highs, lows],
+        backgroundColor: ["rgba(224,112,80,0.80)", "rgba(74,140,74,0.75)"],
+        borderColor: ["#fff", "#fff"],
+        borderWidth: 3,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true, cutout: "70%",
+      plugins: {
+        legend: { display: false },
+        tooltip: { ...tip, callbacks: { label: ctx => ctx.label + ": " + ctx.raw + " (" + Math.round(ctx.raw/total*100) + "%)" } }
+      }
+    }
+  });
+
+  // Summary cards next to donut
+  document.getElementById("donutSummary").innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="background:rgba(74,140,74,0.08);border:1.5px solid rgba(74,140,74,0.20);border-radius:12px;padding:14px 18px;">
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8a9e86;margin-bottom:4px;">Total</div>
+        <div style="font-size:1.7rem;font-weight:700;color:#2c3328;line-height:1;">${total}</div>
+        <div style="font-size:0.75rem;color:#8a9e86;margin-top:2px;">predictions</div>
+      </div>
+      <div style="background:rgba(74,140,74,0.08);border:1.5px solid rgba(74,140,74,0.20);border-radius:12px;padding:14px 18px;">
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#4a8c4a;margin-bottom:4px;">🟢 Low Risk</div>
+        <div style="font-size:1.7rem;font-weight:700;color:#2d6e2d;line-height:1;">${lows}</div>
+        <div style="font-size:0.75rem;color:#8a9e86;margin-top:2px;">${Math.round(lows/total*100)}% of checks</div>
+      </div>
+      <div style="background:rgba(224,112,80,0.07);border:1.5px solid rgba(224,112,80,0.22);border-radius:12px;padding:14px 18px;">
+        <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#e07050;margin-bottom:4px;">🔴 High Risk</div>
+        <div style="font-size:1.7rem;font-weight:700;color:#c05540;line-height:1;">${highs}</div>
+        <div style="font-size:0.75rem;color:#8a9e86;margin-top:2px;">${Math.round(highs/total*100)}% of checks</div>
+      </div>
+    </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   ORIGINAL CODE — NOT MODIFIED
+══════════════════════════════════════════════ */
+async function loadHistory(){
+    if (!user_id) {
+        alert("Not logged in");
+        window.location.href = "index.html";
+        return;
+    }
+
+    const res = await fetch(API_URL + "/user/" + user_id + "/history");
+
+    if (!res.ok) {
+        document.getElementById("historyBody").innerHTML =
+            "<tr><td colspan='5'>Failed to load history</td></tr>";
+        return;
+    }
+
+    const data = await res.json();
+    const tbody = document.getElementById("historyBody");
+    tbody.innerHTML = "";
+
+    data.forEach(item => {
+        const row = `
+        <tr>
+            <td>${item.prediction_id}</td>
+            <td>${item.risk}</td>
+            <td>${item.time}</td>
+            <td>${item.advice}</td>
+            <td>
+              <button class="delete-btn" onclick="deletePrediction(${item.prediction_id})">
+                Delete
+              </button>
+            </td>
+        </tr>
+        `;
+        tbody.innerHTML += row;
+    });
+
+    if (data.length > 0) buildGraphs(data);
+}
+
+async function deletePrediction(id){
+    if (!confirm("Delete this prediction?")) return;
+
+    const res = await fetch(API_URL + "/user/history/" + id, {
+        method: "DELETE"
+    });
+
+    if (res.ok) {
+        loadHistory();
+    } else {
+        alert("Failed to delete");
+    }
+}
+
+loadHistory();
+</script>
+
+</body>
+</html>
