@@ -166,8 +166,17 @@ def register(user: Register):
             (user.email, hash_password(user.password), "user")
         )
         conn.commit()
-    except:
+
+    except sqlite3.IntegrityError:
+        # THIS is the real duplicate email error
         raise HTTPException(status_code=400, detail="Email already exists")
+
+    except Exception as e:
+        # THIS shows real error
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        conn.close()
 
     return {"message": "Registered successfully"}
 
