@@ -15,7 +15,16 @@ async function register(){
     });
 
     const data = await res.json();
-    alert(data.message);
+
+    console.log("STATUS:", res.status);
+    console.log("RESPONSE:", data);
+
+    if (!res.ok) {
+        alert(data.detail || JSON.stringify(data));
+        return;
+    }
+
+    alert(data.message || "Registered successfully");
     window.location.href = "index.html";
 }
 
