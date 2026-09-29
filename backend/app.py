@@ -6,6 +6,8 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
+import itertools
+import math
 
 app = FastAPI()
 
@@ -148,6 +150,149 @@ def encode_input(data: HealthInput):
     }
     return pd.DataFrame([encoded])
 
+# ---------- EXPLANATION + PERSONALISED ADVICE ----------
+FEATURES = [
+    "Age", "Salt_Intake", "Stress_Score", "BP_History", "Sleep_Duration",
+    "BMI", "Medication", "Family_History", "Exercise_Level", "Smoking_Status",
+]
+
+# A "healthy reference person" (encoded exactly like encode_input()).
+# Each feature's contribution = how much of the user's risk comes from that feature
+# compared with this baseline.
+REFERENCE = {
+    "Age": 30, "Salt_Intake": 5.0, "Stress_Score": 2, "BP_History": 0,
+    "Sleep_Duration": 7.5, "BMI": 22.0, "Medication": 0, "Family_History": 0,
+    "Exercise_Level": 2, "Smoking_Status": 0,
+}
+
+DRIVER_MIN = 0.05        # a factor must add >= 5 percentage points of risk to be called a driver
+MAX_DRIVERS = 4
+NON_DRIVERS = {"Medication"}   # being on medication is a marker of treatment, not a cause
+
+# Exact Shapley values need every on/off combination of the 10 features (2^10 = 1024 rows,
+# scored in one batch). These tables are computed once at start-up.
+_N = len(FEATURES)
+_MASKS = np.array(list(itertools.product([0, 1], repeat=_N)), dtype=bool)
+_IDX = np.arange(2 ** _N)
+_SIZE = _MASKS.sum(axis=1)
+_PAIRS = []
+for _i in range(_N):
+    _bit = 1 << (_N - 1 - _i)
+    _lo = _IDX[(_IDX & _bit) == 0]
+    _w = np.array([
+        math.factorial(s) * math.factorial(_N - s - 1) / math.factorial(_N)
+        for s in _SIZE[_lo]
+    ])
+    _PAIRS.append((_lo, _lo | _bit, _w))
+
+
+def explain_prediction(df):
+    """Return {feature: contribution to probability} versus the healthy reference person."""
+    user = df.iloc[0][FEATURES].to_numpy(dtype=float)
+    ref = np.array([REFERENCE[f] for f in FEATURES], dtype=float)
+    rows = np.where(_MASKS, user, ref)                       # True -> user's value
+    batch = pd.DataFrame(rows, columns=FEATURES)
+    v = model.predict_proba(scaler.transform(batch))[:, 1]
+    return {
+        f: float(np.sum(w * (v[hi] - v[lo])))
+        for f, (lo, hi, w) in zip(FEATURES, _PAIRS)
+    }
+
+
+def _reason_label(f, d):
+    labels = {
+        "Age": f"Age ({d.Age}): blood pressure tends to rise with age",
+        "Salt_Intake": f"High salt intake ({d.Salt_Intake:g} g/day)",
+        "Stress_Score": f"High stress level ({d.Stress_Score}/10)",
+        "BP_History": f"Blood pressure history: {d.BP_History.strip().lower()}",
+        "Sleep_Duration": f"Short sleep ({d.Sleep_Duration:g} hours/night)",
+        "BMI": f"Higher body weight (BMI {d.BMI:.1f})",
+        "Family_History": "Family history of hypertension",
+        "Exercise_Level": "Low physical activity",
+        "Smoking_Status": "Smoking",
+    }
+    return labels.get(f, f)
+
+
+def _tips(d):
+    """One tip per factor, ONLY when that factor is actually unhealthy for this user."""
+    t = {}
+    if d.Smoking_Status.lower() != "non-smoker":
+        t["Smoking_Status"] = "Quit smoking - it raises blood pressure and strains the heart. Ask your doctor about cessation support."
+    if d.Salt_Intake > 6:
+        t["Salt_Intake"] = (f"Cut your salt intake from {d.Salt_Intake:g} g/day towards 5-6 g/day: "
+                            "limit processed, packaged and pickled foods and avoid extra salt at the table.")
+    if d.BMI >= 25:
+        t["BMI"] = f"Your BMI is {d.BMI:.1f}. Gradual weight loss (even a few kilos) can noticeably lower blood pressure."
+    if d.Sleep_Duration < 7:
+        t["Sleep_Duration"] = f"You sleep about {d.Sleep_Duration:g} hours a night. Aim for 7-8 hours on a regular schedule."
+    if d.Stress_Score >= 7:
+        t["Stress_Score"] = f"Your stress level is high ({d.Stress_Score}/10). Try breathing exercises, meditation, walks or regular breaks."
+    if d.Exercise_Level.lower() == "low":
+        t["Exercise_Level"] = "Aim for about 30 minutes of moderate activity (e.g. brisk walking) on most days."
+    bp = d.BP_History.lower()
+    if bp == "hypertension":
+        t["BP_History"] = "You have a history of hypertension: monitor your blood pressure regularly and follow up with your doctor."
+    elif bp == "prehypertension":
+        t["BP_History"] = "Your blood pressure has been in the pre-hypertension range: check it regularly and keep a log."
+    if d.Medication.lower() != "none":
+        t["Medication"] = "Continue any prescribed medication as directed and do not change doses without your doctor."
+    if d.Family_History.lower() == "yes":
+        t["Family_History"] = ("Hypertension runs in your family, so have your blood pressure checked at least once a year, "
+                               "even when your other factors look good.")
+    if d.Age >= 50:
+        t["Age"] = "Blood pressure tends to rise with age, so regular check-ups matter more as you get older."
+    return t
+
+
+def build_explanation_and_advice(d, risk, prob, phi):
+    """Build (advice_text, reasons_list). Never raises: falls back to simple advice if phi is None."""
+    drivers = []
+    if phi:
+        drivers = sorted(
+            [(f, p) for f, p in phi.items() if f not in NON_DRIVERS and p >= DRIVER_MIN],
+            key=lambda x: -x[1],
+        )[:MAX_DRIVERS]
+    total = sum(p for _, p in drivers) or 1.0
+
+    reasons = [
+        {"factor": f, "label": _reason_label(f, d), "impact_pct": round(100 * p / total, 1)}
+        for f, p in drivers
+    ]
+
+    lines = []
+    if phi is not None:
+        lines.append(f"Why this prediction (estimated risk {prob * 100:.0f}% - {risk}):")
+        if reasons:
+            for n, r in enumerate(reasons):
+                tag = " (strongest factor)" if n == 0 and len(reasons) > 1 else ""
+                lines.append(f"• {r['label']}{tag}")
+        else:
+            lines.append("• None of your inputs stand out as a strong risk factor.")
+        lines.append("")
+
+    # advice: factors that drive the prediction first, then any other unhealthy habits
+    tips = _tips(d)
+    ordered = [f for f, _ in drivers if f in tips] + [f for f in tips if f not in {x for x, _ in drivers}]
+    lines.append("Personalised advice:")
+    for f in ordered:
+        lines.append(f"• {tips[f]}")
+
+    if not ordered:
+        lines.append("• Your habits and health indicators look good. Keep it up and check your blood pressure periodically.")
+    elif drivers and all(f not in {"Salt_Intake", "Stress_Score", "Sleep_Duration", "BMI", "Smoking_Status", "Exercise_Level"} for f, _ in drivers):
+        lines.append("• Your main risk factors cannot be changed, so regular blood pressure checks matter most - "
+                     "healthy habits still help keep your risk down.")
+
+    if risk == "High":
+        lines.append("• Please consult a doctor for a proper blood pressure check and evaluation.")
+    elif risk == "Medium":
+        lines.append("• Consider getting your blood pressure checked by a health professional.")
+    lines.append("• This is a screening estimate, not a medical diagnosis.")
+
+    return "\n".join(lines), reasons
+
+
 # ---------- ROUTES ----------
 @app.post("/register")
 def register(user: Register):
@@ -207,26 +352,17 @@ def predict(user_id: int, data: HealthInput):
 
     if prob < 0.33:
         risk = "Low"
-        advice = (
-            "• Maintain current diet and exercise routine.\n"
-            "• Keep salt intake under 6g/day.\n"
-            "• Sleep at least 7 hours daily."
-        )
     elif prob < 0.66:
         risk = "Medium"
-        advice = (
-            "• Reduce salt intake.\n"
-            "• Add 30 minutes of exercise daily.\n"
-            "• Monitor blood pressure weekly."
-        )
     else:
         risk = "High"
-        advice = (
-            "• Strictly limit salt intake.\n"
-            "• Avoid smoking and alcohol.\n"
-            "• Improve sleep schedule.\n"
-            "• Consult a doctor immediately."
-        )
+
+    # personalised "why" + advice (falls back gracefully so /predict never fails because of it)
+    try:
+        phi = explain_prediction(df)
+    except Exception:
+        phi = None
+    advice, reasons = build_explanation_and_advice(data, risk, prob, phi)
 
     conn = get_db()
     cursor = conn.cursor()
@@ -256,7 +392,8 @@ def predict(user_id: int, data: HealthInput):
     conn.commit()
     conn.close()
 
-    return {"risk": risk, "advice": advice}
+    return {"risk": risk, "advice": advice,
+            "probability": round(float(prob), 3), "reasons": reasons}
 
 # ---------- USER HISTORY (FIXED: NO MORE 1970) ----------
 @app.get("/user/{user_id}/history")
