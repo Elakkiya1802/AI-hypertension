@@ -265,12 +265,13 @@ async function loadHistory(){
     tbody.innerHTML = "";
 
     data.forEach(item => {
+        const safeAdvice = item.advice ? item.advice.replace(/\n/g, "<br>") : "No advice stored";
         const row = `
         <tr>
             <td>${item.prediction_id}</td>
             <td>${item.risk}</td>
             <td>${item.time}</td>
-            <td>${item.advice}</td>
+            <td>${safeAdvice}</td>
             <td>
               <button class="delete-btn" onclick="deletePrediction(${item.prediction_id})">
                 Delete
